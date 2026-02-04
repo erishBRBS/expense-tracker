@@ -3,7 +3,7 @@ import { LayoutDashboard, Receipt, Plus, Wallet } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const navItems = [
-  { title: "Dashboard", href: "/", icon: LayoutDashboard },
+  { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { title: "Expenses", href: "/expenses", icon: Receipt },
   { title: "Categories", href: "/categories", icon: Plus },
 ]
