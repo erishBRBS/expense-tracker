@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { NavLink, useLocation, useNavigate } from "react-router-dom"
 import { LayoutDashboard, Receipt, Plus, Wallet, UserCog, LogOut } from "lucide-react"
 import { cn } from "@/lib/utils"
