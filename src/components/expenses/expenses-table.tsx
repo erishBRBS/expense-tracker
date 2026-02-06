@@ -36,6 +36,9 @@ interface ExpensesTableProps {
   setCurrentPage: (page: number) => void;
   itemsPerPage: number;
   setItemsPerPage: (items: number) => void;
+
+  totalItems: number;
+  totalPages: number;
 }
 
 const PAGE_SIZE_OPTIONS = [6, 12, 24, 48];
@@ -47,8 +50,11 @@ export function ExpensesTable({
   setCurrentPage,
   itemsPerPage,
   setItemsPerPage,
+  totalItems,
+  totalPages,
 }: ExpensesTableProps) {
-  const { updateExpense, deleteExpense } = useExpenseStore();
+  const { updateExpense, deleteExpense, expensesPage, expensesLimit } = useExpenseStore();
+
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [editName, setEditName] = useState("");
   const [editAmount, setEditAmount] = useState("");
@@ -57,11 +63,8 @@ export function ExpensesTable({
 
   const getCategoryById = (id: string) => categories.find((c) => c.id === id);
 
-  // Pagination calculations
-  const totalPages = Math.ceil(expenses.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedExpenses = expenses.slice(startIndex, endIndex);
+  const endIndex = startIndex + expenses.length;
 
   const handleEdit = (expense: Expense) => {
     setEditingExpense(expense);
@@ -71,14 +74,18 @@ export function ExpensesTable({
     setEditDate(expense.date);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (editingExpense) {
-      updateExpense(editingExpense.id, {
-        name: editName,
-        amount: Number(editAmount),
-        categoryId: editCategoryId,
-        date: editDate,
-      });
+      await updateExpense(
+        editingExpense.id,
+        {
+          name: editName,
+          amount: Number(editAmount),
+          categoryId: editCategoryId,
+          date: editDate,
+        },
+        { page: expensesPage, limit: expensesLimit }
+      );
       setEditingExpense(null);
     }
   };
@@ -91,7 +98,7 @@ export function ExpensesTable({
     });
   };
 
-  if (expenses.length === 0) {
+  if (totalItems === 0) {
     return (
       <Card>
         <CardHeader>
@@ -111,7 +118,7 @@ export function ExpensesTable({
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">
-            Expense List ({expenses.length})
+            Expense List ({totalItems})
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -126,7 +133,7 @@ export function ExpensesTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paginatedExpenses.map((expense) => {
+              {expenses.map((expense) => {
                 const category = getCategoryById(expense.categoryId);
                 return (
                   <TableRow key={expense.id}>
@@ -159,7 +166,7 @@ export function ExpensesTable({
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => deleteExpense(expense.id)}
+                          onClick={() => deleteExpense(expense.id, { page: expensesPage, limit: expensesLimit })}
                           className="text-destructive hover:text-destructive"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -173,7 +180,6 @@ export function ExpensesTable({
             </TableBody>
           </Table>
 
-          {/* Pagination Controls */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 pt-4 border-t">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <span>Show</span>
@@ -197,8 +203,8 @@ export function ExpensesTable({
 
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <span>
-                Showing {startIndex + 1}-{Math.min(endIndex, expenses.length)} of{" "}
-                {expenses.length}
+                Showing {totalItems === 0 ? 0 : startIndex + 1}-{Math.min(endIndex, totalItems)} of{" "}
+                {totalItems}
               </span>
             </div>
 
@@ -213,17 +219,14 @@ export function ExpensesTable({
                 <ChevronLeft className="h-4 w-4" />
                 <span className="sr-only">Previous page</span>
               </Button>
+
               {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
                 let pageNum: number;
-                if (totalPages <= 5) {
-                  pageNum = i + 1;
-                } else if (currentPage <= 3) {
-                  pageNum = i + 1;
-                } else if (currentPage >= totalPages - 2) {
-                  pageNum = totalPages - 4 + i;
-                } else {
-                  pageNum = currentPage - 2 + i;
-                }
+                if (totalPages <= 5) pageNum = i + 1;
+                else if (currentPage <= 3) pageNum = i + 1;
+                else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
+                else pageNum = currentPage - 2 + i;
+
                 return (
                   <Button
                     key={pageNum}
@@ -236,6 +239,7 @@ export function ExpensesTable({
                   </Button>
                 );
               })}
+
               <Button
                 variant="outline"
                 size="icon"
@@ -251,7 +255,6 @@ export function ExpensesTable({
         </CardContent>
       </Card>
 
-      {/* Edit Dialog */}
       <Dialog open={!!editingExpense} onOpenChange={() => setEditingExpense(null)}>
         <DialogContent>
           <DialogHeader>

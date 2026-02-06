@@ -1,8 +1,7 @@
 "use client";
 
-import React from "react"
+import React, { useEffect, useState } from "react";
 
-import { useState } from "react";
 import { useExpenseStore } from "@/lib/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,22 +17,37 @@ import {
 import { Plus } from "lucide-react";
 
 export function AddExpenseForm() {
-  const { categories, addExpense } = useExpenseStore();
+  const {
+    categories,
+    fetchCategories,
+    createExpense,
+    expensesPage,
+    expensesLimit,
+  } = useExpenseStore();
+
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (categories.length === 0) fetchCategories();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !amount || !categoryId) return;
 
-    addExpense({
-      name,
-      amount: Number(amount),
-      categoryId,
-      date,
-    });
+    await createExpense(
+      {
+        name,
+        amount: Number(amount),
+        categoryId,
+        date,
+      },
+      { page: expensesPage, limit: expensesLimit }
+    );
 
     setName("");
     setAmount("");
