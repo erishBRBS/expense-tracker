@@ -51,7 +51,7 @@ export default function LoginPage() {
 
       // expects { accessToken, refreshToken }
       saveTokens({ accessToken: data.accessToken, refreshToken: data.refreshToken })
-      navigate("/", { replace: true })
+      navigate("/dashboard", { replace: true })
     } catch {
       setError("Server error. Please try again.")
     } finally {
@@ -109,7 +109,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex">
       {/* Left Panel */}
       <div className="hidden lg:flex lg:w-1/2 bg-sidebar relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-sidebar via-sidebar to-primary/20" />
+        <div className="absolute inset-0 bg-gradient-to-br from-sidebar via-sidebar to-primary/100" />
         <div className="relative z-10 flex flex-col justify-evenly p-12 w-full">
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary">
@@ -189,7 +189,7 @@ export default function LoginPage() {
                 <Input
                   id="username"
                   type="text"
-                  placeholder="yourusername"
+                  placeholder="Enter your username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   required
