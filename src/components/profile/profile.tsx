@@ -151,8 +151,8 @@ export default function ProfileContent() {
           )}
 
           {/* Avatar */}
-          <div className="flex items-center gap-5">
-            <div className="h-20 w-20 rounded-full overflow-hidden border bg-muted flex items-center justify-center">
+          <div className="flex items-center gap-6">
+            <div className="h-20 w-20 rounded-sm overflow-hidden border bg-muted flex items-center justify-center">
               {avatarPreview ? (
                 <img src={avatarPreview} alt="Avatar" className="h-full w-full object-cover" />
               ) : (
