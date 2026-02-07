@@ -1,73 +1,93 @@
-import React, { useState } from "react"
-import { useNavigate } from "react-router-dom"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { saveTokens } from "@/lib/auth"
-import { Wallet, Eye, EyeOff, AlertCircle, TrendingUp, PieChart, CreditCard, ArrowRight } from "lucide-react"
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { saveTokens } from "@/lib/auth";
+import {
+  Wallet,
+  Eye,
+  EyeOff,
+  AlertCircle,
+  TrendingUp,
+  PieChart,
+  CreditCard,
+  ArrowRight,
+} from "lucide-react";
+import "@/components/LiquidEther.css";
+import LiquidEther from "@/components/LiquidEther";
 
-type AuthMode = "login" | "signup"
+type AuthMode = "login" | "signup";
 
-const BASE_URL = "http://localhost:5000/api"
+const BASE_URL = "http://localhost:5000/api";
 
 export default function LoginPage() {
-  const navigate = useNavigate()
-  const [mode, setMode] = useState<AuthMode>("login")
+  const navigate = useNavigate();
+  const [mode, setMode] = useState<AuthMode>("login");
 
   // login
-  const [username, setUsername] = useState("")
-  const [password, setPassword] = useState("")
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
 
   // signup
-  const [firstName, setFirstName] = useState("")
-  const [lastName, setLastName] = useState("")
-  const [signupUsername, setSignupUsername] = useState("")
-  const [signupEmail, setSignupEmail] = useState("")
-  const [signupPassword, setSignupPassword] = useState("")
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [signupUsername, setSignupUsername] = useState("");
+  const [signupEmail, setSignupEmail] = useState("");
+  const [signupPassword, setSignupPassword] = useState("");
 
-  const [showPassword, setShowPassword] = useState(false)
-  const [showSignupPassword, setShowSignupPassword] = useState(false)
-  const [error, setError] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false);
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   async function handleLoginSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setError("")
-    setIsLoading(true)
+    e.preventDefault();
+    setError("");
+    setIsLoading(true);
 
     try {
       const res = await fetch(`${BASE_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
-      })
+      });
 
-      const data = await res.json()
+      const data = await res.json();
 
       if (!res.ok) {
-        setError(data?.message || "Login failed")
-        return
+        setError(data?.message || "Login failed");
+        return;
       }
 
       // expects { accessToken, refreshToken }
-      saveTokens({ accessToken: data.accessToken, refreshToken: data.refreshToken })
-      navigate("/dashboard", { replace: true })
+      saveTokens({
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+      });
+      navigate("/dashboard", { replace: true });
     } catch {
-      setError("Server error. Please try again.")
+      setError("Server error. Please try again.");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
   }
 
   async function handleSignupSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setError("")
-    setIsLoading(true)
+    e.preventDefault();
+    setError("");
+    setIsLoading(true);
 
     try {
-      if (!firstName || !lastName || !signupUsername || !signupEmail || !signupPassword) {
-        setError("All fields are required")
-        return
+      if (
+        !firstName ||
+        !lastName ||
+        !signupUsername ||
+        !signupEmail ||
+        !signupPassword
+      ) {
+        setError("All fields are required");
+        return;
       }
 
       const res = await fetch(`${BASE_URL}/auth/register`, {
@@ -80,67 +100,80 @@ export default function LoginPage() {
           email: signupEmail,
           password: signupPassword,
         }),
-      })
+      });
 
-      const data = await res.json()
+      const data = await res.json();
 
       if (!res.ok) {
-        setError(data?.message || "Signup failed")
-        return
+        setError(data?.message || "Signup failed");
+        return;
       }
 
       // after register, auto switch to login
-      setMode("login")
-      setUsername(signupUsername)
-      setPassword(signupPassword)
+      setMode("login");
+      setUsername(signupUsername);
+      setPassword(signupPassword);
     } catch {
-      setError("Server error. Please try again.")
+      setError("Server error. Please try again.");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
   }
 
   const toggleMode = () => {
-    setMode(mode === "login" ? "signup" : "login")
-    setError("")
-  }
+    setMode(mode === "login" ? "signup" : "login");
+    setError("");
+  };
 
   return (
     <div className="min-h-screen flex">
       {/* Left Panel */}
-      <div className="hidden lg:flex lg:w-1/2 bg-sidebar relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-sidebar via-sidebar to-primary/100" />
-        <div className="relative z-10 flex flex-col justify-evenly p-12 w-full">
+      {/* Left Panel */}
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-black">
+        {/*  LiquidEther background (white smoke via invert) */}
+        <div className="absolute inset-0 z-0 pointer-events-none">
+          <div className="absolute inset-0 [filter:invert(1)] opacity-90">
+            <LiquidEther />
+          </div>
+
+          {/*  dark overlay */}
+          <div className="absolute inset-0 bg-gradient-to-br from-black/70 via-black/40 to-black/80" />
+        </div>
+
+        {/*  Content */}
+        <div className="relative z-10 flex flex-col justify-center gap-20 p-12 w-full">
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary">
-              <Wallet className="w-5 h-5 text-primary-foreground" />
+            <div className="flex items-center justify-center w-15 h-15 rounded-lg bg-white/10 border border-white/15">
+              <Wallet className="w-10 h-10 text-white" />
             </div>
-            <span className="text-xl font-semibold text-sidebar-foreground">ExpenseTracker</span>
+            <span className="text-4xl font-semibold text-white">
+              ExpenseTracker
+            </span>
           </div>
 
           <div className="space-y-8">
             <div className="space-y-4">
-              <h1 className="text-4xl lg:text-5xl font-light text-sidebar-foreground leading-tight">
+              <h1 className="text-4xl lg:text-5xl font-light text-white leading-tight">
                 Take control of
                 <br />
                 <span className="font-semibold">your finances.</span>
               </h1>
-              <p className="text-lg text-sidebar-muted max-w-md leading-relaxed">
-                Track expenses, set budgets, and gain insights into your spending habits with our intuitive dashboard.
+              <p className="text-lg text-white/70 max-w-md leading-relaxed">
+                Track expenses, set budgets, and gain insights into your
+                spending habits with our intuitive dashboard.
               </p>
             </div>
 
             <div className="flex flex-wrap gap-4">
-              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-black text-white text-sm"
->
+              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 border border-white/15 text-white text-sm">
                 <TrendingUp className="w-4 h-4 text-white" />
                 <span>Real-time tracking</span>
               </div>
-              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-black text-white text-sm">
+              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 border border-white/15 text-white text-sm">
                 <PieChart className="w-4 h-4 text-white" />
                 <span>Visual insights</span>
               </div>
-              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-black text-white text-sm">
+              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 border border-white/15 text-white text-sm">
                 <CreditCard className="w-4 h-4 text-white" />
                 <span>Budget planning</span>
               </div>
@@ -148,8 +181,9 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="absolute -bottom-20 -right-20 w-80 h-80 rounded-full bg-primary/10 blur-3xl" />
-        <div className="absolute top-1/4 -right-10 w-40 h-40 rounded-full bg-accent/10 blur-2xl" />
+        {/* optional glow */}
+        <div className="absolute -bottom-20 -right-20 w-80 h-80 rounded-full bg-white/10 blur-3xl pointer-events-none" />
+        <div className="absolute top-1/4 -right-10 w-40 h-40 rounded-full bg-white/10 blur-2xl pointer-events-none" />
       </div>
 
       {/* Right Panel */}
@@ -159,7 +193,9 @@ export default function LoginPage() {
             <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary">
               <Wallet className="w-5 h-5 text-primary-foreground" />
             </div>
-            <span className="text-xl font-semibold text-foreground">ExpenseTracker</span>
+            <span className="text-xl font-semibold text-foreground">
+              ExpenseTracker
+            </span>
           </div>
 
           <div className="space-y-2">
@@ -225,12 +261,18 @@ export default function LoginPage() {
                     ) : (
                       <Eye className="w-4 h-4 text-muted-foreground" />
                     )}
-                    <span className="sr-only">{showPassword ? "Hide password" : "Show password"}</span>
+                    <span className="sr-only">
+                      {showPassword ? "Hide password" : "Show password"}
+                    </span>
                   </Button>
                 </div>
               </div>
 
-              <Button type="submit" className="w-full h-12 rounded-xl text-base font-medium gap-2 group" disabled={isLoading}>
+              <Button
+                type="submit"
+                className="w-full h-12 rounded-xl text-base font-medium gap-2 group"
+                disabled={isLoading}
+              >
                 {isLoading ? (
                   "Signing in..."
                 ) : (
@@ -340,12 +382,18 @@ export default function LoginPage() {
                     ) : (
                       <Eye className="w-4 h-4 text-muted-foreground" />
                     )}
-                    <span className="sr-only">{showSignupPassword ? "Hide password" : "Show password"}</span>
+                    <span className="sr-only">
+                      {showSignupPassword ? "Hide password" : "Show password"}
+                    </span>
                   </Button>
                 </div>
               </div>
 
-              <Button type="submit" className="w-full h-12 rounded-xl text-base font-medium gap-2 group" disabled={isLoading}>
+              <Button
+                type="submit"
+                className="w-full h-12 rounded-xl text-base font-medium gap-2 group"
+                disabled={isLoading}
+              >
                 {isLoading ? (
                   "Creating account..."
                 ) : (
@@ -360,7 +408,9 @@ export default function LoginPage() {
 
           <div className="pt-4 border-t border-border text-center">
             <p className="text-sm text-muted-foreground">
-              {mode === "login" ? "Don't have an account? " : "Already have an account? "}
+              {mode === "login"
+                ? "Don't have an account? "
+                : "Already have an account? "}
               <Button
                 variant="link"
                 onClick={toggleMode}
@@ -373,5 +423,5 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }
