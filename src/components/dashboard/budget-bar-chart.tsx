@@ -38,52 +38,79 @@ interface BudgetBarChartProps {
   }[];
 }
 
+/** ✅ minimal tooltip prop types (works across recharts versions) */
+type TooltipItem = {
+  dataKey?: string | number;
+  value?: number | string;
+  color?: string;
+};
+
+type SimpleTooltipProps = {
+  active?: boolean;
+  payload?: TooltipItem[];
+  label?: string;
+};
+
+function BudgetBarTooltip({ active, payload, label }: SimpleTooltipProps) {
+  if (active && payload && payload.length) {
+    return (
+      <div className="rounded-lg border bg-card px-3 py-2 shadow-lg">
+        <p className="font-medium">{label}</p>
+
+        {payload.map((entry: TooltipItem, index: number) => (
+          <p key={index} className="text-sm" style={{ color: entry.color }}>
+            {entry.dataKey === "budget" ? "Budget" : "Expense"}:{" "}
+            {formatCurrency(Number(entry.value ?? 0))}
+          </p>
+        ))}
+      </div>
+    );
+  }
+  return null;
+}
+
+/** ✅ helper for safe typing without `any` */
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+
 export function BudgetBarChart({ data }: BudgetBarChartProps) {
   const { updateBudget, selectedYear } = useExpenseStore();
   const [editingMonth, setEditingMonth] = useState<string | null>(null);
   const [budgetValue, setBudgetValue] = useState("");
 
-  const handleBarClick = (data: { month: string; budget: number }) => {
-    setEditingMonth(data.month);
-    setBudgetValue(String(data.budget));
+  const handleBarClick = (item: unknown) => {
+    // Recharts gives a "rectangle item" with `.payload`
+    if (!isRecord(item)) return;
+
+    const payload = item["payload"];
+    if (!isRecord(payload)) return;
+
+    const month = payload["month"];
+    const budget = payload["budget"];
+
+    if (typeof month !== "string") return;
+
+    const budgetNum = typeof budget === "number" ? budget : Number(budget ?? 0);
+
+    setEditingMonth(month);
+    setBudgetValue(String(Number.isFinite(budgetNum) ? budgetNum : 0));
   };
 
-  const handleSaveBudget = () => {
-    if (editingMonth && budgetValue) {
-      updateBudget(editingMonth, selectedYear, Number(budgetValue));
-      setEditingMonth(null);
-      setBudgetValue("");
-    }
+  const handleSaveBudget = async () => {
+    if (!editingMonth) return;
+
+    const n = Number(budgetValue);
+    if (Number.isNaN(n) || n < 0) return;
+
+    await updateBudget(editingMonth, selectedYear, n);
+
+    setEditingMonth(null);
+    setBudgetValue("");
   };
 
-  const CustomTooltip = ({
-    active,
-    payload,
-    label,
-  }: {
-    active?: boolean;
-    payload?: Array<{ dataKey: string; value: number; color: string }>;
-    label?: string;
-  }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="rounded-lg border bg-card px-3 py-2 shadow-lg">
-          <p className="font-medium">{label}</p>
-          {payload.map((entry, index) => (
-            <p key={index} className="text-sm" style={{ color: entry.color }}>
-              {entry.dataKey === "budget" ? "Budget" : "Expense"}:{" "}
-              {formatCurrency(entry.value)}
-            </p>
-          ))}
-        </div>
-      );
-    }
-    return null;
-  };
-
-  // Compute colors in JavaScript for Recharts
-  const budgetColor = "#6366f1"; // primary color
-  const expenseColor = "#22c55e"; // accent/success color
+  const budgetColor = "#6366f1";
+  const expenseColor = "#22c55e";
 
   return (
     <>
@@ -97,8 +124,14 @@ export function BudgetBarChart({ data }: BudgetBarChartProps) {
         <CardContent>
           <div className="h-[340px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+              <BarChart
+                data={data}
+                margin={{ top: 20, right: 45, left: 55, bottom: 5 }}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  className="stroke-border"
+                />
                 <XAxis
                   dataKey="month"
                   tick={{ fontSize: 12 }}
@@ -107,9 +140,9 @@ export function BudgetBarChart({ data }: BudgetBarChartProps) {
                 <YAxis
                   tick={{ fontSize: 12 }}
                   className="fill-muted-foreground"
-                  tickFormatter={(value) => `$${value}`}
+                  tickFormatter={(value) => formatCurrency(Number(value))}
                 />
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip content={<BudgetBarTooltip />} />
                 <Legend
                   formatter={(value) =>
                     value === "budget" ? "Budget" : "Expense"
@@ -120,8 +153,10 @@ export function BudgetBarChart({ data }: BudgetBarChartProps) {
                   fill={budgetColor}
                   radius={[4, 4, 0, 0]}
                   cursor="pointer"
-                  onClick={(data) => handleBarClick(data)}
+                  onClick={handleBarClick}
+                  minPointSize={6}
                 />
+
                 <Bar
                   dataKey="expense"
                   fill={expenseColor}
@@ -138,8 +173,9 @@ export function BudgetBarChart({ data }: BudgetBarChartProps) {
           <DialogHeader>
             <DialogTitle>Edit Budget for {editingMonth}</DialogTitle>
           </DialogHeader>
+
           <div className="py-4">
-            <Label htmlFor="budget">Budget Amount ($)</Label>
+            <Label htmlFor="budget">Budget Amount</Label>
             <Input
               id="budget"
               type="number"
@@ -149,6 +185,7 @@ export function BudgetBarChart({ data }: BudgetBarChartProps) {
               className="mt-2"
             />
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingMonth(null)}>
               Cancel

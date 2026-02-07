@@ -1,7 +1,13 @@
 "use client";
 
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { formatCurrency } from "@/lib/store";
 
 interface CategoryPieChartProps {
@@ -10,6 +16,31 @@ interface CategoryPieChartProps {
     value: number;
     color: string;
   }[];
+}
+
+type PieTooltipItem = {
+  name?: string | number;
+  value?: number | string;
+};
+
+type SimplePieTooltipProps = {
+  active?: boolean;
+  payload?: PieTooltipItem[];
+};
+
+function CategoryPieTooltip({ active, payload }: SimplePieTooltipProps) {
+  if (active && payload && payload.length) {
+    const p = payload[0];
+    return (
+      <div className="rounded-lg border bg-card px-3 py-2 shadow-lg">
+        <p className="font-medium">{String(p.name ?? "")}</p>
+        <p className="text-sm text-muted-foreground">
+          {formatCurrency(Number(p.value ?? 0))}
+        </p>
+      </div>
+    );
+  }
+  return null;
 }
 
 export function CategoryPieChart({ data }: CategoryPieChartProps) {
@@ -26,36 +57,6 @@ export function CategoryPieChart({ data }: CategoryPieChartProps) {
       </Card>
     );
   }
-
-  const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ name: string; value: number; payload: { color: string } }> }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="rounded-lg border bg-card px-3 py-2 shadow-lg">
-          <p className="font-medium">{payload[0].name}</p>
-          <p className="text-sm text-muted-foreground">
-            {formatCurrency(payload[0].value)}
-          </p>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  const renderLegend = () => {
-    return (
-      <div className="mt-4 flex flex-wrap justify-center gap-4">
-        {data.map((entry, index) => (
-          <div key={`legend-${index}`} className="flex items-center gap-2">
-            <div
-              className="h-3 w-3 rounded-full"
-              style={{ backgroundColor: entry.color }}
-            />
-            <span className="text-xs text-muted-foreground">{entry.name}</span>
-          </div>
-        ))}
-      </div>
-    );
-  };
 
   return (
     <Card>
@@ -80,11 +81,22 @@ export function CategoryPieChart({ data }: CategoryPieChartProps) {
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>
-              <Tooltip content={<CustomTooltip />} />
+              <Tooltip content={<CategoryPieTooltip />} />
             </PieChart>
           </ResponsiveContainer>
         </div>
-        {renderLegend()}
+
+        <div className="mt-4 flex flex-wrap justify-center gap-4">
+          {data.map((entry, index) => (
+            <div key={`legend-${index}`} className="flex items-center gap-2">
+              <div
+                className="h-3 w-3 rounded-full"
+                style={{ backgroundColor: entry.color }}
+              />
+              <span className="text-xs text-muted-foreground">{entry.name}</span>
+            </div>
+          ))}
+        </div>
       </CardContent>
     </Card>
   );
