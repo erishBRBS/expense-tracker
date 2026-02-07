@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useExpenseStore } from "@/lib/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -40,8 +40,20 @@ const colorOptions = [
 ];
 
 export function CategoriesContent() {
-  const { categories, addCategory, updateCategory, deleteCategory, expenses } =
-    useExpenseStore();
+  const {
+    categories,
+    expenses,
+    fetchCategories,
+    fetchExpenses,
+    expensesPage,
+    expensesLimit,
+    addCategory,
+    updateCategory,
+    deleteCategory,
+    loadingCategories,
+    categoriesError,
+  } = useExpenseStore();
+
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<{
     id: string;
@@ -52,27 +64,49 @@ export function CategoriesContent() {
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState(colorOptions[0]);
 
-  const handleAddCategory = () => {
+  // ✅ FIX: load categories on first open of this page
+  useEffect(() => {
+    if (categories.length === 0) {
+      fetchCategories();
+    }
+
+    // ✅ Optional: load expenses so expense counts work even if user never visited Expenses tab
+    if (expenses.length === 0) {
+      fetchExpenses({
+        page: expensesPage || 1,
+        limit: expensesLimit || 12,
+      });
+    }
+  }, [
+    categories.length,
+    expenses.length,
+    fetchCategories,
+    fetchExpenses,
+    expensesPage,
+    expensesLimit,
+  ]);
+
+  const handleAddCategory = async () => {
     if (!newName.trim()) return;
-    addCategory({ name: newName, color: newColor });
+    await addCategory({ name: newName.trim(), color: newColor });
     setNewName("");
     setNewColor(colorOptions[0]);
     setIsAddOpen(false);
   };
 
-  const handleEditCategory = () => {
+  const handleEditCategory = async () => {
     if (editingCategory && editingCategory.name.trim()) {
-      updateCategory(editingCategory.id, {
-        name: editingCategory.name,
+      await updateCategory(editingCategory.id, {
+        name: editingCategory.name.trim(),
         color: editingCategory.color,
       });
       setEditingCategory(null);
     }
   };
 
-  const handleDeleteCategory = () => {
+  const handleDeleteCategory = async () => {
     if (deletingCategory) {
-      deleteCategory(deletingCategory);
+      await deleteCategory(deletingCategory);
       setDeletingCategory(null);
     }
   };
@@ -96,6 +130,14 @@ export function CategoriesContent() {
           Add Category
         </Button>
       </div>
+
+      {/* Loading / Error */}
+      {loadingCategories && (
+        <p className="text-sm text-muted-foreground">Loading categories...</p>
+      )}
+      {categoriesError && (
+        <p className="text-sm text-destructive">{categoriesError}</p>
+      )}
 
       {/* Categories Grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -149,7 +191,7 @@ export function CategoriesContent() {
         ))}
       </div>
 
-      {categories.length === 0 && (
+      {categories.length === 0 && !loadingCategories && (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <p className="text-muted-foreground">No categories yet</p>

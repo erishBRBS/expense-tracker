@@ -49,13 +49,13 @@ type ExpenseListResponse = {
   totalPages: number
 }
 
-type CategoriesResponse = {
-  items: Array<{
-    _id: string
-    name: string
-    color: string
-  }>
+// ✅ your backend GET /category/get-categories returns array directly
+type CategoryDoc = {
+  _id: string
+  name: string
+  color: string
 }
+type CategoriesResponse = CategoryDoc[]
 
 interface ExpenseStore {
   categories: Category[]
@@ -77,11 +77,24 @@ interface ExpenseStore {
 
   // Categories
   fetchCategories: () => Promise<void>
+  addCategory: (payload: { name: string; color: string }) => Promise<void>
+  updateCategory: (
+    id: string,
+    payload: Partial<Pick<Category, "name" | "color">>
+  ) => Promise<void>
+  deleteCategory: (id: string) => Promise<void>
 
   // Expenses
   fetchExpenses: (q: ExpensesQuery) => Promise<void>
-  createExpense: (payload: { name: string; amount: number; categoryId: string; date: string }, q?: ExpensesQuery) => Promise<void>
-  updateExpense: (id: string, payload: Partial<Pick<Expense, "name" | "amount" | "categoryId" | "date">>, q?: ExpensesQuery) => Promise<void>
+  createExpense: (
+    payload: { name: string; amount: number; categoryId: string; date: string },
+    q?: ExpensesQuery
+  ) => Promise<void>
+  updateExpense: (
+    id: string,
+    payload: Partial<Pick<Expense, "name" | "amount" | "categoryId" | "date">>,
+    q?: ExpensesQuery
+  ) => Promise<void>
   deleteExpense: (id: string, q?: ExpensesQuery) => Promise<void>
 
   updateBudget: (month: string, year: number, budget: number) => void
@@ -96,6 +109,11 @@ const generateDefaultBudgets = (): MonthlyBudget[] =>
     year: 2026,
     budget: Math.floor(Math.random() * 1000) + 1500,
   }))
+
+export const getMonthName = (monthIndex: number): string => months[monthIndex]
+
+export const formatCurrency = (amount: number): string =>
+  new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(amount)
 
 function toDateOnly(v: string) {
   if (!v) return ""
@@ -119,6 +137,12 @@ function buildQueryString(q: ExpensesQuery) {
   return p.toString()
 }
 
+const mapCategory = (c: CategoryDoc): Category => ({
+  id: c._id,
+  name: c.name,
+  color: c.color,
+})
+
 export const useExpenseStore = create<ExpenseStore>((set, get) => ({
   categories: [],
   expenses: [],
@@ -136,21 +160,18 @@ export const useExpenseStore = create<ExpenseStore>((set, get) => ({
   monthlyBudgets: generateDefaultBudgets(),
   selectedYear: 2026,
 
+  // =========================
+  // CATEGORIES
+  // =========================
   fetchCategories: async () => {
     try {
       set({ loadingCategories: true, categoriesError: "" })
 
-      // ✅ use your existing backend category route
-      // change this path IF your route name differs:
-      // examples: "/category/get-categories" OR "/categories/get-categories"
-      const res = await apiFetch<CategoriesResponse>("/category/get-categories", { method: "GET" })
+      const res = await apiFetch<CategoriesResponse>("/categories/get-categories", {
+        method: "GET",
+      })
 
-      const mapped: Category[] = (res.items ?? []).map((c) => ({
-        id: c._id,
-        name: c.name,
-        color: c.color,
-      }))
-
+      const mapped: Category[] = (res ?? []).map(mapCategory)
       set({ categories: mapped })
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to load categories"
@@ -160,12 +181,79 @@ export const useExpenseStore = create<ExpenseStore>((set, get) => ({
     }
   },
 
+  addCategory: async (payload) => {
+    try {
+      set({ categoriesError: "" })
+
+      const created = await apiFetch<CategoryDoc>("/categories/create-category", {
+        method: "POST",
+        body: JSON.stringify({
+          name: payload.name,
+          color: payload.color,
+        }),
+        headers: { "Content-Type": "application/json" },
+      })
+
+      set((state) => ({
+        categories: [...state.categories, mapCategory(created)],
+      }))
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to add category"
+      set({ categoriesError: msg })
+    }
+  },
+
+  updateCategory: async (id, payload) => {
+    try {
+      set({ categoriesError: "" })
+
+      const updated = await apiFetch<CategoryDoc>(`/categories/update-category/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+        headers: { "Content-Type": "application/json" },
+      })
+
+      set((state) => ({
+        categories: state.categories.map((c) =>
+          c.id === id ? mapCategory(updated) : c
+        ),
+      }))
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to update category"
+      set({ categoriesError: msg })
+    }
+  },
+
+  deleteCategory: async (id) => {
+    try {
+      set({ categoriesError: "" })
+
+      await apiFetch(`/category/delete-category/${id}`, {
+        method: "DELETE",
+      })
+
+      set((state) => ({
+        categories: state.categories.filter((c) => c.id !== id),
+        // optional: remove related expenses instantly
+        expenses: state.expenses.filter((e) => e.categoryId !== id),
+      }))
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to delete category"
+      set({ categoriesError: msg })
+    }
+  },
+
+  // =========================
+  // EXPENSES
+  // =========================
   fetchExpenses: async (q: ExpensesQuery) => {
     try {
       set({ loadingExpenses: true, expensesError: "" })
 
       const qs = buildQueryString(q)
-      const res = await apiFetch<ExpenseListResponse>(`/expenses/get-expenses?${qs}`, { method: "GET" })
+      const res = await apiFetch<ExpenseListResponse>(`/expenses/get-expenses?${qs}`, {
+        method: "GET",
+      })
 
       const mapped: Expense[] = (res.items ?? []).map((e) => ({
         id: e._id,
@@ -214,7 +302,7 @@ export const useExpenseStore = create<ExpenseStore>((set, get) => ({
     if (payload.name !== undefined) body.name = payload.name
     if (payload.amount !== undefined) body.amount = payload.amount
     if (payload.categoryId !== undefined) body.categoryId = payload.categoryId
-    if (payload.date !== undefined) body.date = payload.date // only works if backend allows date update
+    if (payload.date !== undefined) body.date = payload.date
 
     await apiFetch(`/expenses/update-expense/${id}`, {
       method: "PATCH",
@@ -229,11 +317,12 @@ export const useExpenseStore = create<ExpenseStore>((set, get) => ({
     const query = q ?? { page: get().expensesPage, limit: get().expensesLimit }
 
     await apiFetch(`/expenses/delete-expense/${id}`, { method: "DELETE" })
-
-    // refresh
     await get().fetchExpenses(query)
   },
 
+  // =========================
+  // BUDGET + YEAR
+  // =========================
   updateBudget: (month, year, budget) =>
     set((state) => {
       const idx = state.monthlyBudgets.findIndex((b) => b.month === month && b.year === year)
@@ -247,8 +336,3 @@ export const useExpenseStore = create<ExpenseStore>((set, get) => ({
 
   setSelectedYear: (year) => set({ selectedYear: year }),
 }))
-
-export const getMonthName = (monthIndex: number): string => months[monthIndex]
-
-export const formatCurrency = (amount: number): string =>
-  new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(amount)
