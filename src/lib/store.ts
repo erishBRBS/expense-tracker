@@ -64,6 +64,12 @@ type MonthlyBudgetApi = {
   budget: number;
 };
 
+// ✅ dashboard summary (for dynamic years)
+type DashboardSummaryResponse = {
+  years: number[];
+  year: number;
+};
+
 interface ExpenseStore {
   categories: Category[];
   expenses: Expense[];
@@ -79,9 +85,10 @@ interface ExpenseStore {
   expensesError: string;
   categoriesError: string;
 
-  // Budgets
+  // Budgets + years
   monthlyBudgets: MonthlyBudget[];
   selectedYear: number;
+  availableYears: number[];
 
   // Categories
   fetchCategories: () => Promise<void>;
@@ -105,9 +112,12 @@ interface ExpenseStore {
   ) => Promise<void>;
   deleteExpense: (id: string, q?: ExpensesQuery) => Promise<void>;
 
-  // Budgets (NEW)
+  // Budgets
   fetchBudgets: (year: number) => Promise<void>;
   updateBudget: (month: string, year: number, budget: number) => Promise<void>;
+
+  // Dashboard years
+  fetchAvailableYears: (year: number) => Promise<void>;
 
   setSelectedYear: (year: number) => void;
 }
@@ -168,14 +178,16 @@ export const useExpenseStore = create<ExpenseStore>((set, get) => ({
 
   selectedYear: 2026,
   monthlyBudgets: makeZeroBudgets(2026),
+  availableYears: [2026],
 
   // =========================
-  // CATEGORIES (UNCHANGED STYLE)
+  // CATEGORIES
   // =========================
   fetchCategories: async () => {
     try {
       set({ loadingCategories: true, categoriesError: "" });
 
+      // server mount: /api/categories
       const res = await apiFetch<CategoriesResponse>("/categories/get-categories", {
         method: "GET",
       });
@@ -245,13 +257,14 @@ export const useExpenseStore = create<ExpenseStore>((set, get) => ({
   },
 
   // =========================
-  // EXPENSES (UNCHANGED STYLE)
+  // EXPENSES
   // =========================
   fetchExpenses: async (q: ExpensesQuery) => {
     try {
       set({ loadingExpenses: true, expensesError: "" });
 
       const qs = buildQueryString(q);
+      // server mount: /api/expenses
       const res = await apiFetch<ExpenseListResponse>(`/expenses/get-expenses?${qs}`, {
         method: "GET",
       });
@@ -294,6 +307,8 @@ export const useExpenseStore = create<ExpenseStore>((set, get) => ({
     });
 
     await get().fetchExpenses(query);
+    // update years list automatically if new year is introduced
+    await get().fetchAvailableYears(get().selectedYear);
   },
 
   updateExpense: async (id, payload, q) => {
@@ -312,21 +327,24 @@ export const useExpenseStore = create<ExpenseStore>((set, get) => ({
     });
 
     await get().fetchExpenses(query);
+    await get().fetchAvailableYears(get().selectedYear);
   },
 
   deleteExpense: async (id, q) => {
     const query = q ?? { page: get().expensesPage, limit: get().expensesLimit };
 
     await apiFetch(`/expenses/delete-expense/${id}`, { method: "DELETE" });
+
     await get().fetchExpenses(query);
+    await get().fetchAvailableYears(get().selectedYear);
   },
 
   // =========================
-  // BUDGETS (ONLY ADDITION)
+  // BUDGETS
   // =========================
   fetchBudgets: async (year: number) => {
     try {
-      // ✅ keep same style (no /api prefix here)
+      // server mount: /api/budgets
       const res = await apiFetch<MonthlyBudgetApi[]>(
         `/budgets/get-budgets?year=${year}`,
         { method: "GET" }
@@ -338,7 +356,6 @@ export const useExpenseStore = create<ExpenseStore>((set, get) => ({
         budget: Number(b.budget ?? 0),
       }));
 
-      // if backend returns something weird, fallback to 12 months 0
       set({ monthlyBudgets: mapped.length === 12 ? mapped : makeZeroBudgets(year) });
     } catch (err) {
       console.error("fetchBudgets error:", err);
@@ -364,7 +381,6 @@ export const useExpenseStore = create<ExpenseStore>((set, get) => ({
     });
 
     try {
-      // ✅ keep same style (no /api prefix here)
       await apiFetch(`/budgets/upsert-budget`, {
         method: "PUT",
         body: JSON.stringify({
@@ -375,17 +391,37 @@ export const useExpenseStore = create<ExpenseStore>((set, get) => ({
         headers: { "Content-Type": "application/json" },
       });
 
-      // make sure DB state reflected
       await get().fetchBudgets(year);
     } catch (err) {
       console.error("updateBudget error:", err);
-      await get().fetchBudgets(year); // rollback
+      await get().fetchBudgets(year);
+    }
+  },
+
+  // =========================
+  // YEARS (DYNAMIC)
+  // =========================
+  fetchAvailableYears: async (year: number) => {
+    try {
+      // server mount: /api/dashboard
+      const res = await apiFetch<DashboardSummaryResponse>(
+        `/dashboard/summary?year=${year}`,
+        { method: "GET" }
+      );
+
+      const yrs = Array.isArray(res?.years) ? res.years : [];
+      const uniqSorted = Array.from(new Set(yrs)).sort((a, b) => a - b);
+
+      set({ availableYears: uniqSorted.length ? uniqSorted : [year] });
+    } catch (err) {
+      console.error("fetchAvailableYears error:", err);
+      set({ availableYears: [year] });
     }
   },
 
   setSelectedYear: (year) => {
     set({ selectedYear: year });
-    // optional auto-load budgets for that year
     get().fetchBudgets(year);
+    get().fetchAvailableYears(year);
   },
 }));

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useExpenseStore } from "@/lib/store";
 import {
   Select,
@@ -9,10 +10,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const years = [2024, 2025, 2026];
-
 export function YearSelector() {
-  const { selectedYear, setSelectedYear } = useExpenseStore();
+  const { selectedYear, setSelectedYear, availableYears, fetchAvailableYears } =
+    useExpenseStore();
+
+  useEffect(() => {
+    fetchAvailableYears(selectedYear);
+  }, [selectedYear, fetchAvailableYears]);
+
+  const years = availableYears?.length ? availableYears : [selectedYear];
 
   return (
     <Select

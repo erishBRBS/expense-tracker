@@ -16,47 +16,40 @@ export function DashboardContent() {
     fetchBudgets,
     fetchCategories,
     fetchExpenses,
-    expensesPage,
-    expensesLimit,
+    fetchAvailableYears,
   } = useExpenseStore();
 
   useEffect(() => {
     fetchBudgets(selectedYear);
+    fetchAvailableYears(selectedYear);
 
     if (categories.length === 0) fetchCategories();
 
-    // For charts, better to fetch more than 12 so totals are correct
-    if (expenses.length === 0) {
-      fetchExpenses({ page: expensesPage || 1, limit: 9999 });
-    }
+    // for correct charts, fetch a lot
+    if (expenses.length === 0) fetchExpenses({ page: 1, limit: 9999 });
   }, [
     selectedYear,
     fetchBudgets,
+    fetchAvailableYears,
     fetchCategories,
     fetchExpenses,
     categories.length,
     expenses.length,
-    expensesPage,
-    expensesLimit,
   ]);
 
-  // expenses for selected year
   const yearExpenses = expenses.filter(
     (exp) => new Date(exp.date).getFullYear() === selectedYear
   );
 
-  // pie data
   const categoryTotals = categories
     .map((cat) => {
       const total = yearExpenses
         .filter((exp) => exp.categoryId === cat.id)
         .reduce((sum, exp) => sum + exp.amount, 0);
-
       return { name: cat.name, value: total, color: cat.color };
     })
     .filter((c) => c.value > 0);
 
-  // bar data
   const monthlyData = Array.from({ length: 12 }, (_, i) => {
     const monthName = getMonthName(i);
 
@@ -93,7 +86,11 @@ export function DashboardContent() {
         <YearSelector />
       </div>
 
-      <StatsCards totalSpent={totalSpent} totalBudget={totalBudget} difference={difference} />
+      <StatsCards
+        totalSpent={totalSpent}
+        totalBudget={totalBudget}
+        difference={difference}
+      />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <CategoryPieChart data={categoryTotals} />

@@ -126,7 +126,7 @@ export function BudgetBarChart({ data }: BudgetBarChartProps) {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={data}
-                margin={{ top: 20, right: 45, left: 55, bottom: 5 }}
+                margin={{ top: 20, right: 45, left: 30, bottom: 5 }}
               >
                 <CartesianGrid
                   strokeDasharray="3 3"
