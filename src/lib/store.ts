@@ -68,6 +68,27 @@ type MonthlyBudgetApi = {
 type DashboardSummaryResponse = {
   years: number[];
   year: number;
+
+  cards: {
+    totalSpent: number;
+    totalBudget: number;
+    isOverBudget: boolean;
+    savedOrOverAmount: number;
+    budgetUsagePercent: number;
+  };
+
+  monthlyBudgetVsExpenses: Array<{
+    month: number; // 0-11
+    budget: number;
+    spent: number;
+  }>;
+
+  spendingByCategory: Array<{
+    categoryId: string;
+    name: string;
+    color: string;
+    total: number;
+  }>;
 };
 
 interface ExpenseStore {
@@ -90,12 +111,17 @@ interface ExpenseStore {
   selectedYear: number;
   availableYears: number[];
 
+  // ✅ Dashboard summary state (whole-year totals; NOT paginated)
+  dashboardCards: DashboardSummaryResponse["cards"] | null;
+  dashboardMonthly: DashboardSummaryResponse["monthlyBudgetVsExpenses"];
+  dashboardSpendingByCategory: DashboardSummaryResponse["spendingByCategory"];
+
   // Categories
   fetchCategories: () => Promise<void>;
   addCategory: (payload: { name: string; color: string }) => Promise<void>;
   updateCategory: (
     id: string,
-    payload: Partial<Pick<Category, "name" | "color">>
+    payload: Partial<Pick<Category, "name" | "color">>,
   ) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
 
@@ -103,12 +129,12 @@ interface ExpenseStore {
   fetchExpenses: (q: ExpensesQuery) => Promise<void>;
   createExpense: (
     payload: { name: string; amount: number; categoryId: string; date: string },
-    q?: ExpensesQuery
+    q?: ExpensesQuery,
   ) => Promise<void>;
   updateExpense: (
     id: string,
     payload: Partial<Pick<Expense, "name" | "amount" | "categoryId" | "date">>,
-    q?: ExpensesQuery
+    q?: ExpensesQuery,
   ) => Promise<void>;
   deleteExpense: (id: string, q?: ExpensesQuery) => Promise<void>;
 
@@ -116,18 +142,33 @@ interface ExpenseStore {
   fetchBudgets: (year: number) => Promise<void>;
   updateBudget: (month: string, year: number, budget: number) => Promise<void>;
 
-  // Dashboard years
+  // Dashboard years + summary
   fetchAvailableYears: (year: number) => Promise<void>;
 
   setSelectedYear: (year: number) => void;
 }
 
-const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const months = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
 
 export const getMonthName = (monthIndex: number): string => months[monthIndex];
 
 export const formatCurrency = (amount: number): string =>
-  new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(amount);
+  new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(
+    amount,
+  );
 
 const monthToIndex = (monthName: string) => months.indexOf(monthName);
 
@@ -180,6 +221,11 @@ export const useExpenseStore = create<ExpenseStore>((set, get) => ({
   monthlyBudgets: makeZeroBudgets(2026),
   availableYears: [2026],
 
+  // ✅ dashboard initial state
+  dashboardCards: null,
+  dashboardMonthly: [],
+  dashboardSpendingByCategory: [],
+
   // =========================
   // CATEGORIES
   // =========================
@@ -187,14 +233,15 @@ export const useExpenseStore = create<ExpenseStore>((set, get) => ({
     try {
       set({ loadingCategories: true, categoriesError: "" });
 
-      // server mount: /api/categories
-      const res = await apiFetch<CategoriesResponse>("/categories/get-categories", {
-        method: "GET",
-      });
+      const res = await apiFetch<CategoriesResponse>(
+        "/categories/get-categories",
+        { method: "GET" },
+      );
 
       set({ categories: (res ?? []).map(mapCategory) });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to load categories";
+      const msg =
+        err instanceof Error ? err.message : "Failed to load categories";
       set({ categoriesError: msg });
     } finally {
       set({ loadingCategories: false });
@@ -205,16 +252,21 @@ export const useExpenseStore = create<ExpenseStore>((set, get) => ({
     try {
       set({ categoriesError: "" });
 
-      const created = await apiFetch<CategoryDoc>("/categories/create-category", {
-        method: "POST",
-        body: JSON.stringify({
-          name: payload.name,
-          color: payload.color,
-        }),
-        headers: { "Content-Type": "application/json" },
-      });
+      const created = await apiFetch<CategoryDoc>(
+        "/categories/create-category",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            name: payload.name,
+            color: payload.color,
+          }),
+          headers: { "Content-Type": "application/json" },
+        },
+      );
 
-      set((state) => ({ categories: [...state.categories, mapCategory(created)] }));
+      set((state) => ({
+        categories: [...state.categories, mapCategory(created)],
+      }));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to add category";
       set({ categoriesError: msg });
@@ -225,17 +277,23 @@ export const useExpenseStore = create<ExpenseStore>((set, get) => ({
     try {
       set({ categoriesError: "" });
 
-      const updated = await apiFetch<CategoryDoc>(`/categories/update-category/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify(payload),
-        headers: { "Content-Type": "application/json" },
-      });
+      const updated = await apiFetch<CategoryDoc>(
+        `/categories/update-category/${id}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+          headers: { "Content-Type": "application/json" },
+        },
+      );
 
       set((state) => ({
-        categories: state.categories.map((c) => (c.id === id ? mapCategory(updated) : c)),
+        categories: state.categories.map((c) =>
+          c.id === id ? mapCategory(updated) : c,
+        ),
       }));
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to update category";
+      const msg =
+        err instanceof Error ? err.message : "Failed to update category";
       set({ categoriesError: msg });
     }
   },
@@ -251,23 +309,24 @@ export const useExpenseStore = create<ExpenseStore>((set, get) => ({
         expenses: state.expenses.filter((e) => e.categoryId !== id),
       }));
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to delete category";
+      const msg =
+        err instanceof Error ? err.message : "Failed to delete category";
       set({ categoriesError: msg });
     }
   },
 
   // =========================
-  // EXPENSES
+  // EXPENSES (TABLE PAGINATION)
   // =========================
   fetchExpenses: async (q: ExpensesQuery) => {
     try {
       set({ loadingExpenses: true, expensesError: "" });
 
       const qs = buildQueryString(q);
-      // server mount: /api/expenses
-      const res = await apiFetch<ExpenseListResponse>(`/expenses/get-expenses?${qs}`, {
-        method: "GET",
-      });
+      const res = await apiFetch<ExpenseListResponse>(
+        `/expenses/get-expenses?${qs}`,
+        { method: "GET" },
+      );
 
       const mapped: Expense[] = (res.items ?? []).map((e) => ({
         id: e._id,
@@ -277,6 +336,7 @@ export const useExpenseStore = create<ExpenseStore>((set, get) => ({
         date: toDateOnly(e.date),
       }));
 
+      // ✅ KEEP THIS AS PAGE DATA ONLY (do not change)
       set({
         expenses: mapped,
         expensesPage: res.page ?? q.page,
@@ -285,7 +345,8 @@ export const useExpenseStore = create<ExpenseStore>((set, get) => ({
         expensesTotalPages: res.totalPages ?? 1,
       });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to load expenses";
+      const msg =
+        err instanceof Error ? err.message : "Failed to load expenses";
       set({ expensesError: msg });
     } finally {
       set({ loadingExpenses: false });
@@ -307,8 +368,7 @@ export const useExpenseStore = create<ExpenseStore>((set, get) => ({
     });
 
     await get().fetchExpenses(query);
-    // update years list automatically if new year is introduced
-    await get().fetchAvailableYears(get().selectedYear);
+    await get().fetchAvailableYears(get().selectedYear); // refresh dashboard summary too
   },
 
   updateExpense: async (id, payload, q) => {
@@ -327,7 +387,7 @@ export const useExpenseStore = create<ExpenseStore>((set, get) => ({
     });
 
     await get().fetchExpenses(query);
-    await get().fetchAvailableYears(get().selectedYear);
+    await get().fetchAvailableYears(get().selectedYear); // refresh dashboard summary too
   },
 
   deleteExpense: async (id, q) => {
@@ -336,7 +396,7 @@ export const useExpenseStore = create<ExpenseStore>((set, get) => ({
     await apiFetch(`/expenses/delete-expense/${id}`, { method: "DELETE" });
 
     await get().fetchExpenses(query);
-    await get().fetchAvailableYears(get().selectedYear);
+    await get().fetchAvailableYears(get().selectedYear); // refresh dashboard summary too
   },
 
   // =========================
@@ -344,10 +404,9 @@ export const useExpenseStore = create<ExpenseStore>((set, get) => ({
   // =========================
   fetchBudgets: async (year: number) => {
     try {
-      // server mount: /api/budgets
       const res = await apiFetch<MonthlyBudgetApi[]>(
         `/budgets/get-budgets?year=${year}`,
-        { method: "GET" }
+        { method: "GET" },
       );
 
       const mapped: MonthlyBudget[] = (res ?? []).map((b) => ({
@@ -356,7 +415,9 @@ export const useExpenseStore = create<ExpenseStore>((set, get) => ({
         budget: Number(b.budget ?? 0),
       }));
 
-      set({ monthlyBudgets: mapped.length === 12 ? mapped : makeZeroBudgets(year) });
+      set({
+        monthlyBudgets: mapped.length === 12 ? mapped : makeZeroBudgets(year),
+      });
     } catch (err) {
       console.error("fetchBudgets error:", err);
       set({ monthlyBudgets: makeZeroBudgets(year) });
@@ -367,17 +428,18 @@ export const useExpenseStore = create<ExpenseStore>((set, get) => ({
     const monthIndex = monthToIndex(month);
     if (monthIndex < 0) return;
 
-    // optimistic
     set((state) => {
       const idx = state.monthlyBudgets.findIndex(
-        (b) => b.month === month && b.year === year
+        (b) => b.month === month && b.year === year,
       );
       if (idx >= 0) {
         const copy = [...state.monthlyBudgets];
         copy[idx] = { month, year, budget };
         return { monthlyBudgets: copy };
       }
-      return { monthlyBudgets: [...state.monthlyBudgets, { month, year, budget }] };
+      return {
+        monthlyBudgets: [...state.monthlyBudgets, { month, year, budget }],
+      };
     });
 
     try {
@@ -385,13 +447,14 @@ export const useExpenseStore = create<ExpenseStore>((set, get) => ({
         method: "PUT",
         body: JSON.stringify({
           year,
-          month: monthIndex, // 0-11
+          month: monthIndex,
           budget,
         }),
         headers: { "Content-Type": "application/json" },
       });
 
       await get().fetchBudgets(year);
+      await get().fetchAvailableYears(get().selectedYear); // ✅ keep dashboard in sync
     } catch (err) {
       console.error("updateBudget error:", err);
       await get().fetchBudgets(year);
@@ -399,29 +462,43 @@ export const useExpenseStore = create<ExpenseStore>((set, get) => ({
   },
 
   // =========================
-  // YEARS (DYNAMIC)
+  // YEARS + DASHBOARD SUMMARY
   // =========================
   fetchAvailableYears: async (year: number) => {
     try {
-      // server mount: /api/dashboard
       const res = await apiFetch<DashboardSummaryResponse>(
         `/dashboard/summary?year=${year}`,
-        { method: "GET" }
+        { method: "GET" },
       );
 
       const yrs = Array.isArray(res?.years) ? res.years : [];
       const uniqSorted = Array.from(new Set(yrs)).sort((a, b) => a - b);
 
-      set({ availableYears: uniqSorted.length ? uniqSorted : [year] });
+      // ✅ store summary so dashboard charts won't depend on paginated expenses
+      set({
+        availableYears: uniqSorted.length ? uniqSorted : [year],
+        dashboardCards: res?.cards ?? null,
+        dashboardMonthly: Array.isArray(res?.monthlyBudgetVsExpenses)
+          ? res.monthlyBudgetVsExpenses
+          : [],
+        dashboardSpendingByCategory: Array.isArray(res?.spendingByCategory)
+          ? res.spendingByCategory
+          : [],
+      });
     } catch (err) {
       console.error("fetchAvailableYears error:", err);
-      set({ availableYears: [year] });
+      set({
+        availableYears: [year],
+        dashboardCards: null,
+        dashboardMonthly: [],
+        dashboardSpendingByCategory: [],
+      });
     }
   },
 
   setSelectedYear: (year) => {
     set({ selectedYear: year });
     get().fetchBudgets(year);
-    get().fetchAvailableYears(year);
+    get().fetchAvailableYears(year); // ✅ also refresh dashboard summary
   },
 }));

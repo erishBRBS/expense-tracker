@@ -9,14 +9,16 @@ import { BudgetBarChart } from "./budget-bar-chart";
 
 export function DashboardContent() {
   const {
-    expenses,
     categories,
-    monthlyBudgets,
     selectedYear,
     fetchBudgets,
     fetchCategories,
-    fetchExpenses,
     fetchAvailableYears,
+
+    // ✅ from /dashboard/summary (whole year)
+    dashboardCards,
+    dashboardMonthly,
+    dashboardSpendingByCategory,
   } = useExpenseStore();
 
   useEffect(() => {
@@ -24,54 +26,27 @@ export function DashboardContent() {
     fetchAvailableYears(selectedYear);
 
     if (categories.length === 0) fetchCategories();
+  }, [selectedYear, fetchBudgets, fetchAvailableYears, fetchCategories, categories.length]);
 
-    // for correct charts, fetch a lot
-    if (expenses.length === 0) fetchExpenses({ page: 1, limit: 9999 });
-  }, [
-    selectedYear,
-    fetchBudgets,
-    fetchAvailableYears,
-    fetchCategories,
-    fetchExpenses,
-    categories.length,
-    expenses.length,
-  ]);
-
-  const yearExpenses = expenses.filter(
-    (exp) => new Date(exp.date).getFullYear() === selectedYear
-  );
-
-  const categoryTotals = categories
-    .map((cat) => {
-      const total = yearExpenses
-        .filter((exp) => exp.categoryId === cat.id)
-        .reduce((sum, exp) => sum + exp.amount, 0);
-      return { name: cat.name, value: total, color: cat.color };
-    })
+  // ✅ PIE: use backend aggregated totals (not paginated expenses)
+  const categoryTotals = (dashboardSpendingByCategory ?? [])
+    .map((c) => ({
+      name: c.name,
+      value: Number(c.total ?? 0),
+      color: c.color,
+    }))
     .filter((c) => c.value > 0);
 
-  const monthlyData = Array.from({ length: 12 }, (_, i) => {
-    const monthName = getMonthName(i);
+  // ✅ BAR: backend returns {month:0-11, budget, spent} but chart expects {month:"Jan", expense, budget}
+  const monthlyData = (dashboardMonthly ?? []).map((m) => ({
+    month: getMonthName(m.month),
+    expense: Number(m.spent ?? 0),
+    budget: Number(m.budget ?? 0),
+  }));
 
-    const totalExpense = yearExpenses
-      .filter((exp) => new Date(exp.date).getMonth() === i)
-      .reduce((sum, exp) => sum + exp.amount, 0);
-
-    const budgetEntry = monthlyBudgets.find(
-      (b) => b.month === monthName && b.year === selectedYear
-    );
-
-    return {
-      month: monthName,
-      expense: totalExpense,
-      budget: budgetEntry?.budget ?? 0,
-    };
-  });
-
-  const totalSpent = yearExpenses.reduce((sum, exp) => sum + exp.amount, 0);
-  const totalBudget = monthlyBudgets
-    .filter((b) => b.year === selectedYear)
-    .reduce((sum, b) => sum + b.budget, 0);
+  // ✅ CARDS: use backend computed totals (accurate for whole year)
+  const totalSpent = Number(dashboardCards?.totalSpent ?? 0);
+  const totalBudget = Number(dashboardCards?.totalBudget ?? 0);
   const difference = totalBudget - totalSpent;
 
   return (
@@ -86,11 +61,7 @@ export function DashboardContent() {
         <YearSelector />
       </div>
 
-      <StatsCards
-        totalSpent={totalSpent}
-        totalBudget={totalBudget}
-        difference={difference}
-      />
+      <StatsCards totalSpent={totalSpent} totalBudget={totalBudget} difference={difference} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <CategoryPieChart data={categoryTotals} />
